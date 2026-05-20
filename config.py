@@ -18,7 +18,7 @@ PEXELS_VIDEO_URL = "https://api.pexels.com/videos"
 
 # ===== GROQ =====
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama3-70b-8192")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 GROQ_TTS_MODEL = os.getenv("GROQ_TTS_MODEL", "playai-tts")
 GROQ_TTS_VOICE = os.getenv("GROQ_TTS_VOICE", "Fritz-PlayAI")
 GROQ_TTS_VOICES = [
