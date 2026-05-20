@@ -32,6 +32,9 @@ srt>=3.5.3
 # Pexels API
 pexels-api-py==0.0.5
 
+# Text-to-Speech (Microsoft Edge TTS - gratuito, suporte PT-BR)
+edge-tts>=6.1.0
+
 # Utilitarios
 python-dotenv>=1.0.0
 loguru>=0.7.2
