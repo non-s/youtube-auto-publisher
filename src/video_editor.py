@@ -1,6 +1,7 @@
 """
 video_editor.py - Edicao e montagem de video
 Combina clipes, audio e legendas em video final
+Compativel com moviepy 2.x
 """
 import random
 from pathlib import Path
@@ -26,35 +27,28 @@ class VideoEditor:
     ) -> Path:
         """Monta o video final com clipes, audio e legendas"""
         try:
-            from moviepy.editor import (
-                VideoFileClip,
-                AudioFileClip,
-                concatenate_videoclips,
-                CompositeVideoClip,
-            )
-            from moviepy.video.fx.all import resize, fadein, fadeout
+            # moviepy 2.x usa importacao direta
+            from moviepy import VideoFileClip, AudioFileClip, concatenate_videoclips
 
             if not clips:
                 raise ValueError("Nenhum clipe de video disponivel")
 
             logger.info(f"Montando video com {len(clips)} clipes...")
 
-            # Carrega e redimensiona clipes
-            video_clips = []
             clip_duration = duration / len(clips)
+            video_clips = []
 
             for clip_path in clips:
                 try:
                     clip = VideoFileClip(str(clip_path))
-                    # Redimensiona para resolucao alvo
-                    clip = clip.resize((self.width, self.height))
-                    # Corta ou repete para duração alvo
+                    # Redimensiona para resolucao alvo mantendo proporcao
+                    clip = clip.resized((self.width, self.height))
+                    # Corta para duracao alvo
                     if clip.duration > clip_duration:
-                        clip = clip.subclip(0, clip_duration)
-                    clip = clip.set_fps(self.fps)
+                        clip = clip.subclipped(0, clip_duration)
                     video_clips.append(clip)
                 except Exception as e:
-                    logger.warning(f"Erro ao carregar clipe {clip_path}: {e}")
+                    logger.warning(f"Erro ao carregar clipe {clip_path.name}: {e}")
                     continue
 
             if not video_clips:
@@ -64,12 +58,11 @@ class VideoEditor:
             final_video = concatenate_videoclips(video_clips, method="compose")
 
             # Adiciona audio
-            if audio_path.exists():
+            if audio_path and audio_path.exists():
                 audio = AudioFileClip(str(audio_path))
-                # Ajusta duracao do audio ao video
                 if audio.duration > final_video.duration:
-                    audio = audio.subclip(0, final_video.duration)
-                final_video = final_video.set_audio(audio)
+                    audio = audio.subclipped(0, final_video.duration)
+                final_video = final_video.with_audio(audio)
 
             # Renderiza video
             output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -78,13 +71,10 @@ class VideoEditor:
                 fps=self.fps,
                 codec="libx264",
                 audio_codec="aac",
-                temp_audiofile=str(output_path.parent / "temp_audio.m4a"),
-                remove_temp=True,
-                verbose=False,
                 logger=None,
             )
 
-            # Fecha clipes para liberar memoria
+            # Libera memoria
             for clip in video_clips:
                 clip.close()
             final_video.close()
