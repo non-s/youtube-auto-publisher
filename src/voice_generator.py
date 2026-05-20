@@ -1,5 +1,5 @@
 """
-voice_generator.py - Geracao de voz com edge-tts (Microsoft)
+voice_generator.py - Geracao de voz com edge-tts (Microsoft TTS PT-BR)
 Converte texto em audio usando Microsoft Edge TTS (gratuito, suporta PT-BR)
 """
 import json
@@ -13,9 +13,8 @@ import config
 
 
 class VoiceGenerator:
-    """Gera narracoes em voz usando edge-tts (Microsoft TTS)"""
+    """Gera narracoes em voz usando edge-tts (Microsoft TTS PT-BR)"""
 
-    # Vozes do Edge TTS em portugues brasileiro
     EDGE_VOICES = [
         "pt-BR-FranciscaNeural",
         "pt-BR-AntonioNeural",
@@ -27,109 +26,80 @@ class VoiceGenerator:
         self.default_voice = self.EDGE_VOICES[0]
         self.available_voices = self.EDGE_VOICES
 
-    def generate_audio(
-        self,
-        text: str,
-        output_path: Path,
-        voice: Optional[str] = None,
-        speed: float = 1.0,
-    ) -> Path:
-        """Gera audio a partir de texto usando edge-tts (Microsoft)"""
+    def generate_audio(self, text, output_path, voice=None, speed=1.0):
         import edge_tts
-
-        voice = voice or self.default_voice
-        # Se a voz for do formato antigo PlayAI, usa a voz padrao PT-BR
-        if "PlayAI" in str(voice):
+        if not voice or "PlayAI" in str(voice):
             voice = self.EDGE_VOICES[0]
-
-        logger.info(f"Gerando audio com voz '{voice}': {text[:50]}...")
+        logger.info(f"Gerando audio com voz '{voice}'...")
         output_path.parent.mkdir(parents=True, exist_ok=True)
-
         async def _generate():
             communicate = edge_tts.Communicate(text, voice)
             await communicate.save(str(output_path))
-
         asyncio.run(_generate())
         logger.success(f"Audio gerado: {output_path}")
         return output_path
 
-    def generate_script(
-        self,
-        topic: str,
-        duration_seconds: int = 60,
-        style: str = "engajante e dinamico",
-        language: str = "pt-BR",
-    ) -> str:
-        """Gera roteiro de naracao usando Groq LLM"""
-        words_per_minute = 150
+    def generate_curiosity_script(self, topic, duration_seconds=60, language="pt-BR"):
+        words_per_minute = 140
         target_words = int((duration_seconds / 60) * words_per_minute)
-        prompt = f"""Crie um roteiro de naracao em {language} sobre o tema '{topic}'.
+        prompt = f"""Crie roteiro de CURIOSIDADES em {language} sobre: \"{topic}\"
 
-O roteiro deve ter aproximadamente {target_words} palavras e ser {style}.
-Regras:
-- Use linguagem simples e clara
-- Seja envolvente e mantenha o espectador interessado
-- Inclua fatos interessantes ou dicas praticas
-- Termine com uma chamada para acao (curtir, comentar, se inscrever)
-- NAO inclua instrucoes de cena ou direcoes
-- Escreva APENAS o texto para ser narrado
+Aprox {target_words} palavras. Formato:
+1. Abertura impactante com pergunta ou fato chocante
+2. 3-5 fatos incriveis e surpreendentes com dados especificos
+3. Encerramento: Curta, compartilhe e se inscreva!
 
-Escreva SOMENTE o texto da narracao, sem titulos ou marcacoes."""
-
+Regras: linguagem simples e entusiasmada, frases curtas, apenas texto narrado sem marcacoes.
+"""
         completion = self.client.chat.completions.create(
             model=config.GROQ_MODEL,
             messages=[
-                {
-                    "role": "system",
-                    "content": "Voce e um roteirista profissional de videos do YouTube.",
-                },
+                {"role": "system", "content": "Voce e roteirista especialista em curiosidades para YouTube. Cria conteudo viral e educativo."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.8,
-            max_tokens=1000,
+            temperature=0.85,
+            max_tokens=1200,
         )
         script = completion.choices[0].message.content.strip()
         logger.info(f"Roteiro gerado: {len(script.split())} palavras")
         return script
 
-    def generate_random_voice_audio(
-        self,
-        text: str,
-        output_path: Path,
-    ) -> Path:
-        """Gera audio com uma voz aleatoria em PT-BR"""
+    def generate_script(self, topic, duration_seconds=60, style="engajante", language="pt-BR"):
+        return self.generate_curiosity_script(topic, duration_seconds, language)
+
+    def generate_random_voice_audio(self, text, output_path):
         voice = random.choice(self.EDGE_VOICES)
+        logger.info(f"Voz selecionada: {voice}")
         return self.generate_audio(text, output_path, voice=voice)
 
-    def generate_title_and_description(self, topic: str, script: str) -> dict:
-        """Gera titulo e descricao otimizados para SEO usando Groq"""
-        prompt = f"""Com base no roteiro sobre '{topic}', crie:
-1. Um titulo chamativo e otimizado para SEO (max 100 chars)
-2. Uma descricao completa com hashtags (max 5000 chars)
-3. Tags separadas por virgula (max 500 chars)
-
-Formato de resposta (JSON):
-{{
-  "title": "titulo aqui",
-  "description": "descricao aqui",
-  "tags": "tag1,tag2,tag3"
-}}
-
-Roteiro: {script[:500]}"""
-
-        completion = self.client.chat.completions.create(
-            model=config.GROQ_MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Voce e um especialista em SEO para YouTube.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.7,
-            max_tokens=800,
-            response_format={"type": "json_object"},
-        )
-        result = json.loads(completion.choices[0].message.content)
-        logger.info(f"Titulo gerado: {result.get('title', '')[:50]}")
-        return result
+    def generate_title_and_description(self, topic, script):
+        prompt = f"""Crie metadata SEO para video de CURIOSIDADES sobre \"{topic}\".
+Formato JSON exato:
+{{"title": "titulo com emoji max 80 chars", "description": "descricao com hashtags", "tags": "tag1,tag2,tag3"}}
+Topico: {topic}
+Roteiro: {script[:200]}
+Responda APENAS com JSON valido:"""
+        try:
+            completion = self.client.chat.completions.create(
+                model=config.GROQ_MODEL,
+                messages=[
+                    {"role": "system", "content": "Especialista em SEO YouTube. Responda APENAS com JSON valido."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.7,
+                max_tokens=600,
+            )
+            content = completion.choices[0].message.content.strip()
+            if "```" in content:
+                content = content.split("```")[1]
+                if content.startswith("json"):
+                    content = content[4:]
+                content = content.split("```")[0].strip()
+            return json.loads(content)
+        except Exception as e:
+            logger.error(f"Erro ao gerar metadata: {e}")
+            return {
+                "title": f"Curiosidades Incriveis sobre {topic.title()} 🤯",
+                "description": f"Descubra fatos surpreendentes sobre {topic}! #curiosidades #fatos #educacao",
+                "tags": f"curiosidades,{topic},fatos incriveis,voce sabia,educacao",
+            }
