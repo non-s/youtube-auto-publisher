@@ -30,7 +30,7 @@ openai-whisper>=20231117
 srt>=3.5.3
 
 # Pexels API
-pexels-api-py>=1.0.1
+pexels-api-py==0.0.5
 
 # Utilitarios
 python-dotenv>=1.0.0
