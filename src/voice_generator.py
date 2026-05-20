@@ -1,9 +1,10 @@
 """
-voice_generator.py - Geracao de voz com Groq TTS
-Converte texto em audio usando a API Groq PlayAI TTS
+voice_generator.py - Geracao de voz com edge-tts (Microsoft)
+Converte texto em audio usando Microsoft Edge TTS (gratuito, suporta PT-BR)
 """
 import json
 import random
+import asyncio
 from pathlib import Path
 from typing import Optional
 from groq import Groq
@@ -12,13 +13,19 @@ import config
 
 
 class VoiceGenerator:
-    """Gera narracoes em voz usando Groq TTS"""
+    """Gera narracoes em voz usando edge-tts (Microsoft TTS)"""
+
+    # Vozes do Edge TTS em portugues brasileiro
+    EDGE_VOICES = [
+        "pt-BR-FranciscaNeural",
+        "pt-BR-AntonioNeural",
+        "pt-BR-ThalitaNeural",
+    ]
 
     def __init__(self):
         self.client = Groq(api_key=config.GROQ_API_KEY)
-        self.model = config.GROQ_TTS_MODEL
-        self.default_voice = config.GROQ_TTS_VOICE
-        self.available_voices = config.GROQ_TTS_VOICES
+        self.default_voice = self.EDGE_VOICES[0]
+        self.available_voices = self.EDGE_VOICES
 
     def generate_audio(
         self,
@@ -27,17 +34,22 @@ class VoiceGenerator:
         voice: Optional[str] = None,
         speed: float = 1.0,
     ) -> Path:
-        """Gera audio a partir de texto usando Groq TTS"""
+        """Gera audio a partir de texto usando edge-tts (Microsoft)"""
+        import edge_tts
+
         voice = voice or self.default_voice
+        # Se a voz for do formato antigo PlayAI, usa a voz padrao PT-BR
+        if "PlayAI" in str(voice):
+            voice = self.EDGE_VOICES[0]
+
         logger.info(f"Gerando audio com voz '{voice}': {text[:50]}...")
-        response = self.client.audio.speech.create(
-            model=self.model,
-            voice=voice,
-            input=text,
-            response_format="wav",
-        )
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        response.stream_to_file(str(output_path))
+
+        async def _generate():
+            communicate = edge_tts.Communicate(text, voice)
+            await communicate.save(str(output_path))
+
+        asyncio.run(_generate())
         logger.success(f"Audio gerado: {output_path}")
         return output_path
 
@@ -85,8 +97,8 @@ Escreva SOMENTE o texto da narracao, sem titulos ou marcacoes."""
         text: str,
         output_path: Path,
     ) -> Path:
-        """Gera audio com uma voz aleatoria"""
-        voice = random.choice(self.available_voices)
+        """Gera audio com uma voz aleatoria em PT-BR"""
+        voice = random.choice(self.EDGE_VOICES)
         return self.generate_audio(text, output_path, voice=voice)
 
     def generate_title_and_description(self, topic: str, script: str) -> dict:
