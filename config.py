@@ -22,42 +22,42 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "llama3-70b-8192")
 GROQ_TTS_MODEL = os.getenv("GROQ_TTS_MODEL", "playai-tts")
 GROQ_TTS_VOICE = os.getenv("GROQ_TTS_VOICE", "Fritz-PlayAI")
 GROQ_TTS_VOICES = [
-      "Fritz-PlayAI",
-      "Aaliyah-PlayAI",
-      "Adelaide-PlayAI",
-      "Angelo-PlayAI",
-      "Arsenio-PlayAI",
-      "Briggs-PlayAI",
-      "Calum-PlayAI",
-      "Celeste-PlayAI",
+    "Fritz-PlayAI",
+    "Aaliyah-PlayAI",
+    "Adelaide-PlayAI",
+    "Angelo-PlayAI",
+    "Arsenio-PlayAI",
+    "Cillian-PlayAI",
+    "Deedee-PlayAI",
+    "Gail-PlayAI",
+    "Indigo-PlayAI",
+    "Mamaw-PlayAI",
+    "Mason-PlayAI",
+    "Mikail-PlayAI",
+    "Mitch-PlayAI",
+    "Nia-PlayAI",
+    "Quinn-PlayAI",
+    "Thunder-PlayAI",
 ]
-
-# ===== MISTRAL =====
-MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
-MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", "mistral-large-latest")
 
 # ===== YOUTUBE =====
 YOUTUBE_CLIENT_ID = os.getenv("YOUTUBE_CLIENT_ID", "")
 YOUTUBE_CLIENT_SECRET = os.getenv("YOUTUBE_CLIENT_SECRET", "")
-YOUTUBE_REDIRECT_URI = os.getenv("YOUTUBE_REDIRECT_URI", "http://localhost:8080")
-YOUTUBE_TOKEN_FILE = os.getenv("YOUTUBE_TOKEN_FILE", "token.json")
-YOUTUBE_CREDENTIALS_FILE = os.getenv("YOUTUBE_CREDENTIALS_FILE", "credentials.json")
-YOUTUBE_SCOPES = [
-      "https://www.googleapis.com/auth/youtube.upload",
-      "https://www.googleapis.com/auth/youtube",
-      "https://www.googleapis.com/auth/youtube.force-ssl",
-]
+YOUTUBE_TOKEN_JSON = os.getenv("YOUTUBE_TOKEN_JSON", "")
+YOUTUBE_SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+VIDEO_PRIVACY_STATUS = os.getenv("VIDEO_PRIVACY_STATUS", "private")
+VIDEO_CATEGORY_ID = os.getenv("VIDEO_CATEGORY_ID", "22")
 
 # ===== VIDEO =====
-VIDEO_LANGUAGE = os.getenv("VIDEO_LANGUAGE", "pt-BR")
-VIDEO_CATEGORY_ID = int(os.getenv("VIDEO_CATEGORY_ID", "22"))
-VIDEO_PRIVACY_STATUS = os.getenv("VIDEO_PRIVACY_STATUS", "public")
-VIDEO_MAX_DURATION = int(os.getenv("VIDEO_MAX_DURATION", "60"))
-VIDEO_MIN_DURATION = int(os.getenv("VIDEO_MIN_DURATION", "30"))
-VIDEO_RESOLUTION = os.getenv("VIDEO_RESOLUTION", "1920x1080")
+VIDEO_WIDTH = int(os.getenv("VIDEO_WIDTH", "1920"))
+VIDEO_HEIGHT = int(os.getenv("VIDEO_HEIGHT", "1080"))
 VIDEO_FPS = int(os.getenv("VIDEO_FPS", "30"))
+VIDEO_DURATION = int(os.getenv("VIDEO_DURATION", "60"))
+VIDEO_NUM_CLIPS = int(os.getenv("VIDEO_NUM_CLIPS", "5"))
 
 # ===== AUDIO =====
+AUDIO_SAMPLE_RATE = int(os.getenv("AUDIO_SAMPLE_RATE", "44100"))
+AUDIO_CHANNELS = int(os.getenv("AUDIO_CHANNELS", "2"))
 AUDIO_VOICE_VOLUME = float(os.getenv("AUDIO_VOICE_VOLUME", "1.0"))
 AUDIO_MUSIC_VOLUME = float(os.getenv("AUDIO_MUSIC_VOLUME", "0.3"))
 AUDIO_FADE_DURATION = int(os.getenv("AUDIO_FADE_DURATION", "2"))
@@ -80,7 +80,7 @@ LOGS_DIR = BASE_DIR / "logs"
 
 # Cria diretorios se nao existirem
 for d in [OUTPUT_DIR, TEMP_DIR, MUSIC_DIR, FONTS_DIR, DATA_DIR, LOGS_DIR]:
-      d.mkdir(parents=True, exist_ok=True)
+    d.mkdir(parents=True, exist_ok=True)
 
 # ===== BANCO DE DADOS =====
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DATA_DIR}/videos.db")
@@ -97,21 +97,22 @@ LOG_FILE = Path(os.getenv("LOG_FILE", str(LOGS_DIR / "app.log")))
 
 # ===== TOPICOS DE VIDEO =====
 VIDEO_TOPICS = [
-      "natureza", "viagem", "tecnologia", "culinaria",
-      "saude", "fitness", "negocios", "motivacao",
-      "cultura", "historia", "ciencia", "arte",
+    "natureza", "viagem", "tecnologia", "ciencia",
+    "historia", "curiosidades", "saude", "fitness",
+    "culinaria", "animais", "espaco", "oceano",
 ]
+DEFAULT_TOPICS = VIDEO_TOPICS
 
-# ===== VALIDACAO =====
+
 def validate_config():
-      """Valida as configuracoes obrigatorias"""
-      required = {
-          "PEXELS_API_KEY": PEXELS_API_KEY,
-          "GROQ_API_KEY": GROQ_API_KEY,
-          "YOUTUBE_CLIENT_ID": YOUTUBE_CLIENT_ID,
-          "YOUTUBE_CLIENT_SECRET": YOUTUBE_CLIENT_SECRET,
-      }
-      missing = [k for k, v in required.items() if not v]
-      if missing:
-                raise ValueError(f"Variaveis obrigatorias nao configuradas: {', '.join(missing)}")
-            return True
+    """Valida se as configuracoes obrigatorias estao presentes"""
+    required = {
+        "GROQ_API_KEY": GROQ_API_KEY,
+        "PEXELS_API_KEY": PEXELS_API_KEY,
+        "YOUTUBE_CLIENT_ID": YOUTUBE_CLIENT_ID,
+        "YOUTUBE_CLIENT_SECRET": YOUTUBE_CLIENT_SECRET,
+    }
+    missing = [k for k, v in required.items() if not v]
+    if missing:
+        raise ValueError(f"Variaveis obrigatorias nao configuradas: {', '.join(missing)}")
+    return True
