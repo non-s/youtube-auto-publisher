@@ -1,70 +1,77 @@
-name: Auto Publish Video
+name: YouTube Auto Publisher - 4 Videos por Dia
 
 on:
   schedule:
-    - cron: '0 10 * * *'
+    # Melhores horarios YouTube (horario de Brasilia -> UTC)
+    # 08:00 BRT = 11:00 UTC
+    - cron: "0 11 * * *"
+    # 12:00 BRT = 15:00 UTC
+    - cron: "0 15 * * *"
+    # 17:00 BRT = 20:00 UTC
+    - cron: "0 20 * * *"
+    # 20:00 BRT = 23:00 UTC
+    - cron: "0 23 * * *"
   workflow_dispatch:
     inputs:
       topic:
-        description: 'Topico do video'
+        description: "Topico especifico (deixe vazio para automatico)"
         required: false
-        default: ''
-      duration:
-        description: 'Duracao em segundos'
-        required: false
-        default: '60'
+        default: ""
 
 jobs:
-  publish:
+  publish-video:
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repositorio
         uses: actions/checkout@v4
 
-      - name: Setup Python 3.11
+      - name: Configurar Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          python-version: "3.11"
+          cache: "pip"
 
-      - name: Install FFmpeg
+      - name: Instalar FFmpeg
         run: |
-          sudo apt-get update
+          sudo apt-get update -y
           sudo apt-get install -y ffmpeg
+          ffmpeg -version
 
-      - name: Install Python dependencies
-        run: pip install -r requirements.txt
-
-      - name: Create .env file
+      - name: Instalar dependencias Python
         run: |
-          cat > .env << 'ENVEOF'
-          PEXELS_API_KEY=${{ secrets.PEXELS_API_KEY }}
-          GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}
-          YOUTUBE_CLIENT_ID=${{ secrets.YOUTUBE_CLIENT_ID }}
-          YOUTUBE_CLIENT_SECRET=${{ secrets.YOUTUBE_CLIENT_SECRET }}
-          VIDEO_PRIVACY_STATUS=public
-          VIDEO_LANGUAGE=pt-BR
-          ENVEOF
+          pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: Restore YouTube token
+      - name: Configurar credenciais YouTube
+        env:
+          YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
         run: |
-          echo '${{ secrets.YOUTUBE_TOKEN_JSON }}' > token.json
+          echo "$YOUTUBE_TOKEN_JSON" > token.json
+          echo "Credenciais configuradas"
 
-      - name: Run auto publisher
+      - name: Criar video de curiosidades
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
+          VIDEO_PRIVACY_STATUS: "public"
+          ENABLE_AUTO_PUBLISH: "true"
         run: |
-          TOPIC="${{ github.event.inputs.topic }}"
-          DURATION="${{ github.event.inputs.duration }}"
-          if [ -z "$TOPIC" ]; then
-            python main.py --duration ${DURATION:-60}
+          if [ -n "${{ github.event.inputs.topic }}" ]; then
+            python main.py --topic "${{ github.event.inputs.topic }}"
           else
-            python main.py --topic "$TOPIC" --duration ${DURATION:-60}
+            python main.py
           fi
 
-      - name: Upload logs on failure
-        if: failure()
+      - name: Upload video como artifact (backup)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: logs-${{ github.run_id }}
-          path: logs/
+          name: video-${{ github.run_number }}
+          path: output/*.mp4
+          retention-days: 7
+          if-no-files-found: ignore
