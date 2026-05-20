@@ -19,25 +19,25 @@ PEXELS_VIDEO_URL = "https://api.pexels.com/videos"
 # ===== GROQ =====
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-GROQ_TTS_MODEL = os.getenv("GROQ_TTS_MODEL", "playai-tts")
+GROQ_TTS_MODEL = os.getenv("GROQ_TTS_MODEL", "playai-tts-arabic")
 GROQ_TTS_VOICE = os.getenv("GROQ_TTS_VOICE", "Fritz-PlayAI")
 GROQ_TTS_VOICES = [
-    "Fritz-PlayAI",
-    "Aaliyah-PlayAI",
-    "Adelaide-PlayAI",
-    "Angelo-PlayAI",
-    "Arsenio-PlayAI",
+    "Arista-PlayAI",
+    "Atlas-PlayAI",
+    "Basil-PlayAI",
+    "Briggs-PlayAI",
+    "Calum-PlayAI",
+    "Celeste-PlayAI",
+    "Cheyenne-PlayAI",
+    "Chip-PlayAI",
     "Cillian-PlayAI",
     "Deedee-PlayAI",
+    "Eleanor-PlayAI",
+    "Fritz-PlayAI",
     "Gail-PlayAI",
-    "Indigo-PlayAI",
+    "Jennifer-PlayAI",
     "Mamaw-PlayAI",
     "Mason-PlayAI",
-    "Mikail-PlayAI",
-    "Mitch-PlayAI",
-    "Nia-PlayAI",
-    "Quinn-PlayAI",
-    "Thunder-PlayAI",
 ]
 
 # ===== YOUTUBE =====
