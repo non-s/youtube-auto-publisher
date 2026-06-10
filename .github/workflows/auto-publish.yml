@@ -1,16 +1,8 @@
-name: YouTube Auto Publisher - 4 Videos por Dia
+name: YouTube Auto Publisher
 
 on:
   schedule:
-    # Melhores horarios YouTube (horario de Brasilia -> UTC)
-    # 08:00 BRT = 11:00 UTC
-    - cron: "0 11 * * *"
-    # 12:00 BRT = 15:00 UTC
-    - cron: "0 15 * * *"
-    # 17:00 BRT = 20:00 UTC
-    - cron: "0 20 * * *"
-    # 20:00 BRT = 23:00 UTC
-    - cron: "0 23 * * *"
+    - cron: "0 11,15,20,23 * * *"
   workflow_dispatch:
     inputs:
       topic:
@@ -18,25 +10,43 @@ on:
         required: false
         default: ""
 
+concurrency:
+  group: youtube-auto-publisher-main
+  cancel-in-progress: false
+
 jobs:
   publish-video:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
+      VIDEO_PRIVACY_STATUS: "public"
+      ENABLE_AUTO_PUBLISH: "true"
 
     steps:
       - name: Checkout repositorio
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
 
       - name: Configurar Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6.2.0
         with:
           python-version: "3.11"
           cache: "pip"
 
-      - name: Instalar FFmpeg
+      - name: Instalar FFmpeg e fontes
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y ffmpeg
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg fonts-dejavu-core fonts-liberation fonts-noto-core fontconfig
+          sudo fc-cache -f -v
           ffmpeg -version
 
       - name: Instalar dependencias Python
@@ -44,22 +54,17 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Configurar credenciais YouTube
-        env:
-          YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
+      - name: Quality gate antes de publicar
         run: |
-          echo "$YOUTUBE_TOKEN_JSON" > token.json
-          echo "Credenciais configuradas"
+          python -m compileall -q .
+          python -m pytest -q
 
-      - name: Criar video de curiosidades
-        env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
-          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
-          YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
-          VIDEO_PRIVACY_STATUS: "public"
-          ENABLE_AUTO_PUBLISH: "true"
+      - name: Validar secrets e token do YouTube
+        run: |
+          python -m json.tool <<< "$YOUTUBE_TOKEN_JSON" > /dev/null
+          python main.py --check-auth
+
+      - name: Criar e publicar video de curiosidades
         run: |
           if [ -n "${{ github.event.inputs.topic }}" ]; then
             python main.py --topic "${{ github.event.inputs.topic }}"
@@ -67,11 +72,30 @@ jobs:
             python main.py
           fi
 
-      - name: Upload video como artifact (backup)
+      - name: Salvar estado no git
         if: always()
-        uses: actions/upload-artifact@v4
+        run: |
+          git config user.name "YouTube Auto Publisher Bot"
+          git config user.email "bot@example.com"
+          git fetch origin main
+          git pull --rebase --autostash origin main
+          git add data/*.json 2>/dev/null || true
+          git add output/*.json 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "Nenhum estado para salvar."
+            exit 0
+          fi
+          git commit -m "publisher state: $(date -u +'%Y-%m-%d')"
+          git push origin HEAD
+
+      - name: Upload video e logs como artifact
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
         with:
-          name: video-${{ github.run_number }}
-          path: output/*.mp4
+          name: publisher-artifacts-${{ github.run_number }}
+          path: |
+            output/*.mp4
+            logs/*.log
+            data/*.json
           retention-days: 7
           if-no-files-found: ignore

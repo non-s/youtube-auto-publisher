@@ -19,15 +19,10 @@ from rich.panel import Panel
 from rich.table import Table
 import config
 
-# Adiciona src ao path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
-from pexels_downloader import PexelsDownloader
-from voice_generator import VoiceGenerator
-from subtitle_generator import SubtitleGenerator
-from music_mixer import MusicMixer
-from video_editor import VideoEditor
-from youtube_uploader import YouTubeUploader
 from database import DatabaseManager
+from published_ledger import record_video
+from quality_gate import audit_metadata, audit_script
 
 console = Console()
 
@@ -121,6 +116,7 @@ def create_video(
     Pipeline completo de criacao e publicacao de video de curiosidades.
     """
     # Seleciona topico automaticamente se nao fornecido
+    config.validate_config(require_youtube=upload and not dry_run)
     if not topic:
         topic = get_next_topic()
 
@@ -141,6 +137,13 @@ def create_video(
     db = DatabaseManager()
 
     try:
+        from pexels_downloader import PexelsDownloader
+        from voice_generator import VoiceGenerator
+        from subtitle_generator import SubtitleGenerator
+        from music_mixer import MusicMixer
+        from video_editor import VideoEditor
+        from youtube_uploader import YouTubeUploader
+
         console.print(Panel(
             f"[bold green]Criando video de curiosidades: [cyan]{topic}[/cyan][/bold green]\n"
             f"Duracao: {duration}s | Clipes: {num_clips} | Sessao: {session_id}",
@@ -155,6 +158,10 @@ def create_video(
             p.update(t, description="Roteiro gerado!")
 
         console.print(f"[green]Roteiro:[/green] {script[:150]}...")
+        script_audit = audit_script(script)
+        result["script_audit"] = script_audit
+        if not script_audit["approved"]:
+            raise ValueError(f"Roteiro bloqueado pelo quality gate: {script_audit['reasons']}")
 
         # ETAPA 2: Gerar audio (TTS edge-tts PT-BR)
         with Progress(SpinnerColumn(), TextColumn("{task.description}")) as p:
@@ -185,6 +192,7 @@ def create_video(
             clips = downloader.download_clips_for_topic(
                 topic, session_dir, num_clips=num_clips
             )
+            clip_metadata = getattr(downloader, "last_downloaded_metadata", [])
             p.update(t, description=f"Clipes baixados: {len(clips)}")
 
         if not clips:
@@ -222,6 +230,10 @@ def create_video(
             t = p.add_task("Gerando titulo e descricao SEO...", total=None)
             meta = voice_gen.generate_title_and_description(topic, script)
             p.update(t, description="Metadados gerados!")
+        metadata_audit = audit_metadata(meta)
+        result["metadata_audit"] = metadata_audit
+        if not metadata_audit["approved"]:
+            raise ValueError(f"Metadata bloqueada pelo quality gate: {metadata_audit['reasons']}")
 
         console.print(f"[bold]Titulo:[/bold] {meta.get('title', '')}")
 
@@ -238,6 +250,19 @@ def create_video(
                     category_id=config.VIDEO_CATEGORY_ID,
                     privacy_status=config.VIDEO_PRIVACY_STATUS,
                 )
+                youtube_id = yt_result.get("id")
+                try:
+                    series_playlist = f"Auto Publisher | {topic[:40].title()}"
+                    yt_result["playlist"] = uploader.add_to_playlist(youtube_id, series_playlist)
+                except Exception as exc:
+                    logger.warning(f"Falha ao adicionar playlist: {exc}")
+                try:
+                    yt_result["comment"] = uploader.post_comment(
+                        youtube_id,
+                        f"Qual curiosidade voce quer ver no proximo video? Tema de hoje: {topic}",
+                    )
+                except Exception as exc:
+                    logger.warning(f"Falha ao postar comentario CTA: {exc}")
                 p.update(t, description="Video publicado!")
 
             result["youtube_id"] = yt_result.get("id")
@@ -247,6 +272,12 @@ def create_video(
             console.print("[yellow]Modo dry-run: video nao publicado[/yellow]")
 
         result["success"] = True
+        record_video(
+            topic=topic,
+            youtube_id=result.get("youtube_id"),
+            video_path=str(video_path),
+            clips=clip_metadata if "clip_metadata" in locals() else [],
+        )
 
         # Registra topico como usado para evitar duplicatas
         save_used_topic(topic)
@@ -394,32 +425,39 @@ def main():
     parser.add_argument("--status", action="store_true", help="Mostra status do sistema")
     parser.add_argument("--list-topics", action="store_true", help="Lista todos os topicos de curiosidades")
     parser.add_argument("--reset-topics", action="store_true", help="Reinicia lista de topicos usados")
+    parser.add_argument("--check-auth", action="store_true", help="Valida token do YouTube e sai")
 
     args = parser.parse_args()
 
+    if args.check_auth:
+        config.validate_config(require_youtube=True)
+        from youtube_uploader import YouTubeUploader
+        YouTubeUploader().check_auth()
+        return 0
+
     if args.status:
         show_status()
-        return
+        return 0
 
     if args.list_topics:
         console.print(Panel(
             "\n".join([f"  {i+1}. {t}" for i, t in enumerate(config.CURIOSITY_TOPICS)]),
             title=f"Topicos de Curiosidades ({len(config.CURIOSITY_TOPICS)} total)"
         ))
-        return
+        return 0
 
     if args.reset_topics:
         if USED_TOPICS_FILE.exists():
             USED_TOPICS_FILE.unlink()
         console.print("[green]Lista de topicos usados reiniciada![/green]")
-        return
+        return 0
 
     if args.schedule:
         run_scheduler()
-        return
+        return 0
 
     # Criacao de video unico
-    create_video(
+    result = create_video(
         topic=args.topic,
         duration=args.duration,
         num_clips=args.clips,
@@ -427,7 +465,8 @@ def main():
         upload=not args.no_upload,
         dry_run=args.dry_run,
     )
+    return 0 if result.get("success") else 1
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

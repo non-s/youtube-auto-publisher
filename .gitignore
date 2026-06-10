@@ -203,6 +203,16 @@ cython_debug/
 # Temporary file for partial code execution
 tempCodeRunnerFile.py
 
+# YouTube publisher runtime state
+token.json
+client_secrets.json
+credentials.json
+data/*.db
+data/*.db-*
+temp/
+output/*.mp4
+assets/music/*.mp3
+
 # Ruff stuff:
 .ruff_cache/
 

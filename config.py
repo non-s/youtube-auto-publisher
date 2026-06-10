@@ -28,14 +28,19 @@ EDGE_TTS_VOICES_PTBR = [
 YOUTUBE_CLIENT_ID = os.getenv("YOUTUBE_CLIENT_ID", "")
 YOUTUBE_CLIENT_SECRET = os.getenv("YOUTUBE_CLIENT_SECRET", "")
 YOUTUBE_TOKEN_JSON = os.getenv("YOUTUBE_TOKEN_JSON", "")
-YOUTUBE_SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+YOUTUBE_SCOPES = [
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtube.readonly",
+    "https://www.googleapis.com/auth/youtube.force-ssl",
+    "https://www.googleapis.com/auth/yt-analytics.readonly",
+]
 VIDEO_PRIVACY_STATUS = os.getenv("VIDEO_PRIVACY_STATUS", "public")
 VIDEO_CATEGORY_ID = os.getenv("VIDEO_CATEGORY_ID", "27")
 
-VIDEO_WIDTH = int(os.getenv("VIDEO_WIDTH", "1920"))
-VIDEO_HEIGHT = int(os.getenv("VIDEO_HEIGHT", "1080"))
+VIDEO_WIDTH = int(os.getenv("VIDEO_WIDTH", "1080"))
+VIDEO_HEIGHT = int(os.getenv("VIDEO_HEIGHT", "1920"))
 VIDEO_FPS = int(os.getenv("VIDEO_FPS", "30"))
-VIDEO_DURATION = int(os.getenv("VIDEO_DURATION", "60"))
+VIDEO_DURATION = int(os.getenv("VIDEO_DURATION", "35"))
 VIDEO_NUM_CLIPS = int(os.getenv("VIDEO_NUM_CLIPS", "5"))
 
 AUDIO_SAMPLE_RATE = int(os.getenv("AUDIO_SAMPLE_RATE", "44100"))
@@ -71,7 +76,6 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_FILE = Path(os.getenv("LOG_FILE", str(LOGS_DIR / "app.log")))
 
 CURIOSITY_TOPICS = [
-    "fatos incriveis sobre o universo",
     "curiosidades sobre animais marinhos",
     "fenomenos naturais inexplicaveis",
     "fatos surpreendentes sobre o corpo humano",
@@ -81,27 +85,12 @@ CURIOSITY_TOPICS = [
     "curiosidades sobre o cerebro humano",
     "os lugares mais extremos da Terra",
     "fatos fascinantes sobre plantas carnivoras",
-    "misterios da historia antiga",
-    "fatos surpreendentes sobre o Egito antigo",
-    "curiosidades sobre a Roma antiga",
-    "descobertas arqueologicas inacreditaveis",
-    "civilizacoes perdidas da historia",
-    "inventos que mudaram o mundo",
-    "curiosidades sobre inteligencia artificial",
-    "fatos sobre a exploracao espacial",
-    "tecnologias futuristas que ja existem",
-    "curiosidades sobre a internet",
-    "fatos sobre exoplanetas",
     "os animais mais velozes do mundo",
     "curiosidades sobre golfinhos",
     "os predadores mais poderosos da natureza",
     "curiosidades sobre aves exoticas",
     "animais com habilidades sobre-humanas",
     "curiosidades sobre tubaroes",
-    "curiosidades sobre a psicologia humana",
-    "ilusoes de otica e como funcionam",
-    "fatos sobre sonhos e sono",
-    "curiosidades sobre a memoria humana",
     "os lugares mais perigosos do mundo",
     "fatos sobre o fundo do oceano",
     "curiosidades sobre a Antartica",
@@ -123,13 +112,13 @@ def get_unused_topic(used_topics: list) -> str:
         available = CURIOSITY_TOPICS
     return random.choice(available)
 
-def validate_config():
+def validate_config(require_youtube: bool = True):
     required = {
         "GROQ_API_KEY": GROQ_API_KEY,
         "PEXELS_API_KEY": PEXELS_API_KEY,
-        "YOUTUBE_CLIENT_ID": YOUTUBE_CLIENT_ID,
-        "YOUTUBE_CLIENT_SECRET": YOUTUBE_CLIENT_SECRET,
     }
+    if require_youtube and ENABLE_AUTO_PUBLISH:
+        required["YOUTUBE_TOKEN_JSON"] = YOUTUBE_TOKEN_JSON
     missing = [k for k, v in required.items() if not v]
     if missing:
         raise ValueError(f"Variaveis obrigatorias nao configuradas: {', '.join(missing)}")
