@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from database import DatabaseManager
 from published_ledger import record_video
 from quality_gate import audit_metadata, audit_script
+from topic_strategy import comment_cta, playlist_title, topic_pillar
 
 console = Console()
 
@@ -146,7 +147,7 @@ def create_video(
 
         console.print(Panel(
             f"[bold green]Criando video de curiosidades: [cyan]{topic}[/cyan][/bold green]\n"
-            f"Duracao: {duration}s | Clipes: {num_clips} | Sessao: {session_id}",
+            f"Pilar: {topic_pillar(topic)} | Duracao: {duration}s | Clipes: {num_clips} | Sessao: {session_id}",
             title="YouTube Auto Publisher - Curiosidades"
         ))
 
@@ -252,14 +253,13 @@ def create_video(
                 )
                 youtube_id = yt_result.get("id")
                 try:
-                    series_playlist = f"Auto Publisher | {topic[:40].title()}"
-                    yt_result["playlist"] = uploader.add_to_playlist(youtube_id, series_playlist)
+                    yt_result["playlist"] = uploader.add_to_playlist(youtube_id, playlist_title(topic))
                 except Exception as exc:
                     logger.warning(f"Falha ao adicionar playlist: {exc}")
                 try:
                     yt_result["comment"] = uploader.post_comment(
                         youtube_id,
-                        f"Qual curiosidade voce quer ver no proximo video? Tema de hoje: {topic}",
+                        comment_cta(topic),
                     )
                 except Exception as exc:
                     logger.warning(f"Falha ao postar comentario CTA: {exc}")
@@ -398,6 +398,7 @@ def show_status():
     table.add_row("Videos hoje", f"{today}/{config.MAX_VIDEOS_PER_DAY}")
     table.add_row("Topicos usados (recentes)", str(len(used_topics)))
     table.add_row("Topicos disponiveis", str(len(config.CURIOSITY_TOPICS)))
+    table.add_row("Pilares editoriais", "Espaco, Corpo, Historia, Ciencia, Tecnologia, Natureza, Mundo")
     table.add_row("Auto publish", "Ativado" if config.ENABLE_AUTO_PUBLISH else "Desativado")
     table.add_row("Horarios", config.PUBLISH_TIMES)
     table.add_row("Privacidade", config.VIDEO_PRIVACY_STATUS)

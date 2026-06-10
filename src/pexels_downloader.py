@@ -7,6 +7,7 @@ import requests
 from pathlib import Path
 import config
 from published_ledger import used_clip_ids
+from topic_strategy import pexels_query
 
 
 class PexelsDownloader:
@@ -65,18 +66,10 @@ class PexelsDownloader:
         if num_clips is not None:
             count = num_clips
         output_dir.mkdir(parents=True, exist_ok=True)
-        topic_translations = {
-            "natureza": "nature", "tecnologia": "technology",
-            "ciencia": "science", "historia": "history",
-            "curiosidades": "curiosities", "saude": "health",
-            "fitness": "fitness", "culinaria": "cooking food",
-            "animais": "animals wildlife", "espaco": "space universe",
-            "oceano": "ocean sea", "viagem": "travel",
-        }
-        search_query = topic_translations.get(topic.lower(), topic)
+        search_query = pexels_query(topic)
         videos = self.search_videos(search_query, per_page=count * 3)
         if not videos:
-            videos = self.search_videos("nature wildlife", per_page=count * 3)
+            videos = self.search_videos("curiosity documentary science", per_page=count * 3)
         used = used_clip_ids()
         videos = [v for v in videos if str(v.get("id") or "") not in used]
         random.shuffle(videos)

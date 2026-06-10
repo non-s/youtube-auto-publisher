@@ -10,11 +10,11 @@ def test_audit_script_blocks_generic_short_script():
 
 def test_audit_script_accepts_specific_shorts_script():
     script = (
-        "Polvos mudam de cor em menos de 1 segundo quando precisam sumir no recife. "
-        "A pele deles tem celulas que expandem pigmentos como pequenos paineis vivos. "
-        "O detalhe mais estranho e que eles tambem mudam a textura, criando rugas e "
-        "pontas para parecer pedra. No final, olhe de novo para a primeira imagem e "
-        "tente achar onde o corpo realmente comeca."
+        "Buracos negros nao sugam tudo como aspiradores; eles vencem pela gravidade. "
+        "Se o Sol virasse um buraco negro com a mesma massa, a Terra ainda orbitava "
+        "quase do mesmo jeito. O ponto sem volta se chama horizonte de eventos. "
+        "A partir dali, nem a luz consegue escapar, viajando a 299792 quilometros "
+        "por segundo. O estranho e que o perigo real depende da distancia."
     )
 
     assert audit_script(script)["approved"] is True
@@ -23,9 +23,9 @@ def test_audit_script_accepts_specific_shorts_script():
 def test_audit_metadata_requires_searchable_package():
     weak = audit_metadata({"title": "Oi", "description": "desc", "tags": ""})
     strong = audit_metadata({
-        "title": "Polvos mudam de cor em menos de 1 segundo",
-        "description": "Um fato rapido sobre camuflagem. #Shorts #Curiosidades",
-        "tags": "polvo,camuflagem,curiosidades",
+        "title": "Buracos negros nao funcionam como voce imagina",
+        "description": "Um fato rapido sobre gravidade e espaco. #Shorts #Curiosidades",
+        "tags": "buracos negros,espaco,curiosidades",
     })
 
     assert weak["approved"] is False

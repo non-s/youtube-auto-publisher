@@ -5,7 +5,7 @@ def test_published_ledger_records_unique_clip_ids(tmp_path):
     path = tmp_path / "published_clips.json"
 
     record_video(
-        topic="polvos",
+        topic="buracos negros",
         youtube_id="yt1",
         video_path="out.mp4",
         clips=[

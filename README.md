@@ -1,214 +1,78 @@
 # YouTube Auto Publisher
 
-Automacao completa para criar e publicar videos no YouTube usando IA.
+Automacao para criar e publicar Shorts de curiosidades no YouTube usando Groq, Pexels, Edge TTS, Whisper e YouTube Data API v3.
 
-## Funcionalidades
+O canal foi desenhado para curiosidades gerais, nao para um nicho unico. Os temas sao organizados em pilares editoriais:
 
-- **Download de videos**: Busca clipes HD no Pexels por topico
-- - **Geracao de roteiro**: Usa Groq (LLaMA 3) para criar scripts engajantes
-  - - **Narracao por IA**: Groq PlayAI TTS com multiplas vozes em PT-BR
-    - - **Legendas automaticas**: Transcreve audio com Whisper e gera SRT sincronizado
-      - - **Musica de fundo**: Adiciona musicas CC0 com volume dinamico e fade
-        - - **Edicao de video**: Concatena clipes com efeitos Ken Burns, zoom e transitions
-          - - **Publicacao automatica**: Upload para o YouTube com SEO otimizado
-            - - **Agendador**: Publica videos automaticamente em horarios configurados
-             
-              - ## Fluxo do Pipeline
-             
-              - ```
-                Topico → Groq LLM (roteiro) → Groq TTS (voz) → Whisper (legendas)
-                → Pexels (clipes) → MusicMixer (audio) → VideoEditor (edicao) → YouTube
-                ```
+- Espaco e Universo
+- Corpo e Mente
+- Historia Misteriosa
+- Ciencia Rapida
+- Tecnologia e Futuro
+- Natureza Extrema
+- Mundo Curioso
 
-                ## Instalacao
+## Pipeline
 
-                ### Pre-requisitos
+```text
+Topico -> roteiro Groq -> narracao Edge TTS -> legendas Whisper
+-> clipes Pexels portrait -> edicao vertical -> quality gate -> upload YouTube
+-> playlist por pilar -> comentario CTA -> ledger de clipes publicados
+```
 
-                - Python 3.10+
-                - - FFmpeg instalado no sistema
-                  - - Conta no Pexels (API gratuita)
-                    - - Conta no Groq (API gratuita)
-                      - - Projeto no Google Cloud com YouTube Data API v3
-                       
-                        - ### 1. Clone o repositorio
-                       
-                        - ```bash
-                          git clone https://github.com/KenjiFelipe/youtube-auto-publisher.git
-                          cd youtube-auto-publisher
-                          ```
+## Requisitos
 
-                          ### 2. Instale as dependencias
+- Python 3.10+
+- FFmpeg
+- `GROQ_API_KEY`
+- `PEXELS_API_KEY`
+- `YOUTUBE_TOKEN_JSON` quando `ENABLE_AUTO_PUBLISH=true`
 
-                          ```bash
-                          pip install -r requirements.txt
-                          ```
+O token do YouTube precisa cobrir estes escopos:
 
-                          ### 3. Configure as variaveis de ambiente
+- `https://www.googleapis.com/auth/youtube.upload`
+- `https://www.googleapis.com/auth/youtube.readonly`
+- `https://www.googleapis.com/auth/youtube.force-ssl`
+- `https://www.googleapis.com/auth/yt-analytics.readonly`
 
-                          ```bash
-                          cp .env.example .env
-                          # Edite o arquivo .env com suas chaves de API
-                          ```
+## Configuracao
 
-                          ### 4. Configure as credenciais do YouTube
+```bash
+pip install -r requirements.txt
+cp .env.example .env
+```
 
-                          1. Acesse [Google Cloud Console](https://console.cloud.google.com)
-                          2. 2. Crie um projeto e ative a **YouTube Data API v3**
-                             3. 3. Crie credenciais OAuth 2.0 (Desktop App)
-                                4. 4. Baixe o `credentials.json` e coloque na raiz do projeto
-                                  
-                                   5. ## Configuracao
-                                  
-                                   6. Edite o arquivo `.env` com suas credenciais:
-                                  
-                                   7. ```env
-                                      # Pexels
-                                      PEXELS_API_KEY=sua_chave_aqui
+Configure os secrets no GitHub Actions com os mesmos nomes do `.env.example`.
 
-                                      # Groq
-                                      GROQ_API_KEY=sua_chave_aqui
+## Uso
 
-                                      # YouTube
-                                      YOUTUBE_CLIENT_ID=seu_client_id
-                                      YOUTUBE_CLIENT_SECRET=seu_client_secret
-                                      ```
+```bash
+python main.py --status
+python main.py --list-topics
+python main.py --topic "curiosidades sobre buracos negros" --no-upload
+python main.py --topic "segredos da Roma antiga" --dry-run
+python main.py --check-auth
+python main.py --schedule
+```
 
-                                      ### APIs necessarias
+Por padrao, o projeto gera Shorts verticais em `1080x1920`, com duracao curta e ate 4 publicacoes por dia.
 
-                                      | API | Uso | Link |
-                                      |-----|-----|------|
-                                      | Pexels | Videos HD gratuitos | [pexels.com/api](https://www.pexels.com/api/) |
-                                      | Groq | LLM + TTS (gratuito) | [console.groq.com](https://console.groq.com) |
-                                      | YouTube Data API v3 | Upload de videos | [cloud.google.com](https://console.cloud.google.com) |
+## Protecoes
 
-                                      ## Uso
+- Bloqueio de roteiro curto, generico ou lento demais para Shorts.
+- Bloqueio de metadata fraca.
+- Dedupe de clipes ja usados no ledger `data/published_clips.json`.
+- Persistencia de estado depois do upload.
+- OAuth interativo desativado no GitHub Actions.
+- Retries no upload resumivel do YouTube.
+- CI com compile, testes, auth preflight e artefatos de diagnostico.
 
-                                      ### Criar um video sobre um topico
+## Desenvolvimento
 
-                                      ```bash
-                                      python main.py --topic natureza
-                                      ```
+```bash
+python -m compileall -q .
+python -m pytest -q
+python main.py --status
+```
 
-                                      ### Opcoes disponiveis
-
-                                      ```bash
-                                      python main.py --help
-
-                                      # Topico especifico com duracao
-                                      python main.py --topic tecnologia --duration 90
-
-                                      # Escolher numero de clipes
-                                      python main.py --topic viagem --clips 6
-
-                                      # Escolher voz especifica
-                                      python main.py --topic saude --voice Aaliyah-PlayAI
-
-                                      # Modo teste (sem publicar)
-                                      python main.py --topic culinaria --dry-run
-
-                                      # Criar video sem publicar
-                                      python main.py --topic fitness --no-upload
-
-                                      # Modo agendador automatico
-                                      python main.py --schedule
-
-                                      # Listar topicos e vozes
-                                      python main.py --list-topics
-                                      python main.py --list-voices
-                                      ```
-
-                                      ### Vozes disponiveis (Groq PlayAI)
-
-                                      | Voz | Genero |
-                                      |-----|--------|
-                                      | Fritz-PlayAI | Masculina |
-                                      | Aaliyah-PlayAI | Feminina |
-                                      | Adelaide-PlayAI | Feminina |
-                                      | Angelo-PlayAI | Masculino |
-                                      | Arsenio-PlayAI | Masculino |
-                                      | Briggs-PlayAI | Masculino |
-                                      | Calum-PlayAI | Masculino |
-                                      | Celeste-PlayAI | Feminina |
-
-                                      ## Estrutura do Projeto
-
-                                      ```
-                                      youtube-auto-publisher/
-                                      ├── main.py                    # Ponto de entrada CLI
-                                      ├── config.py                  # Configuracoes centralizadas
-                                      ├── requirements.txt           # Dependencias Python
-                                      ├── .env.example               # Modelo de variaveis de ambiente
-                                      ├── .gitignore                 # Arquivos ignorados pelo Git
-                                      ├── src/
-                                      │   ├── pexels_downloader.py   # Download de videos do Pexels
-                                      │   ├── voice_generator.py     # TTS com Groq PlayAI
-                                      │   ├── subtitle_generator.py  # Legendas com Whisper
-                                      │   ├── music_mixer.py         # Mixer de musica de fundo
-                                      │   ├── video_editor.py        # Edicao de video com MoviePy
-                                      │   └── youtube_uploader.py    # Upload para YouTube
-                                      ├── assets/
-                                      │   ├── music/                 # Musicas CC0 (adicione suas faixas)
-                                      │   └── fonts/                 # Fontes customizadas
-                                      ├── output/                    # Videos finais gerados
-                                      ├── temp/                      # Arquivos temporarios
-                                      ├── data/                      # Banco de dados SQLite
-                                      └── logs/                      # Logs da aplicacao
-                                      ```
-
-                                      ## Musicas de Fundo
-
-                                      Adicione musicas livres de direitos autorais (CC0/CC-BY) na pasta `assets/music/`.
-
-                                      Fontes recomendadas:
-                                      - [Free Music Archive](https://freemusicarchive.org) - Filtrar por CC0
-                                      - - [ccMixter](http://ccmixter.org) - Musicas CC
-                                        - - [Pixabay Music](https://pixabay.com/music/) - 100% livre
-                                         
-                                          - ## Configuracoes Avancadas
-                                         
-                                          - ### Agendamento automatico
-                                         
-                                          - Configure no `.env`:
-                                         
-                                          - ```env
-                                            PUBLISH_SCHEDULE=0 10 * * *    # Todo dia as 10h
-                                            MAX_VIDEOS_PER_DAY=3           # Maximo 3 videos por dia
-                                            ENABLE_AUTO_PUBLISH=true
-                                            ```
-
-                                            ### Qualidade do video
-
-                                            ```env
-                                            VIDEO_RESOLUTION=1920x1080
-                                            VIDEO_FPS=30
-                                            ```
-
-                                            ### Legendas
-
-                                            ```env
-                                            SUBTITLE_FONT=Arial
-                                            SUBTITLE_FONT_SIZE=48
-                                            SUBTITLE_COLOR=white
-                                            SUBTITLE_STROKE_COLOR=black
-                                            ```
-
-                                            ## Topicos predefinidos
-
-                                            - natureza, viagem, tecnologia, culinaria
-                                            - - saude, fitness, negocios, motivacao
-                                              - - cultura, historia, ciencia, arte
-                                               
-                                                - Adicione mais em `config.py` → `VIDEO_TOPICS`
-                                               
-                                                - ## Notas de Seguranca
-                                               
-                                                - - Nunca commite o arquivo `.env` (ja esta no `.gitignore`)
-                                                  - - Proteja o `credentials.json` e `token.json`
-                                                    - - Use variaveis de ambiente em producao
-                                                     
-                                                      - ## Licenca
-                                                     
-                                                      - MIT License - veja [LICENSE](LICENSE) para detalhes.
-                                                     
-                                                      - ---
-                                                      Feito com Groq, Pexels API e YouTube Data API v3
+Arquivos sensiveis como `.env`, tokens, credenciais e bancos locais ficam fora do Git.
