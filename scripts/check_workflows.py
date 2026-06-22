@@ -33,7 +33,9 @@ for path in sorted(WORKFLOWS.glob("*.yml")) + sorted(WORKFLOWS.glob("*.yaml")):
         fail(path, "pull_request_target is not allowed for this repository")
     if not re.search(r"^permissions:\s*$", text, flags=re.MULTILINE):
         fail(path, "must declare explicit top-level permissions")
-    if re.search(r"^permissions:\s*write-all\s*$", text, flags=re.MULTILINE | re.IGNORECASE):
+    if re.search(
+        r"^permissions:\s*write-all\s*$", text, flags=re.MULTILINE | re.IGNORECASE
+    ):
         fail(path, "write-all permissions are not allowed")
     if not re.search(r"^concurrency:\s*$", text, flags=re.MULTILINE):
         fail(path, "must declare concurrency to prevent duplicate production runs")
