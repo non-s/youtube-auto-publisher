@@ -14,11 +14,14 @@ REQUIRED_FILES = (
     "config.py",
     "main.py",
     "requirements.txt",
+    "scripts/check_production_contracts.py",
     "scripts/check_workflows.py",
 )
 
 REQUIRED_ENV_EXAMPLE_KEYS = (
     "PEXELS_API_KEY",
+    "PEXELS_TIMEOUT_SECONDS",
+    "PEXELS_MAX_DOWNLOAD_MB",
     "GROQ_API_KEY",
     "GROQ_MODEL",
     "GROQ_TTS_MODEL",
@@ -33,6 +36,9 @@ REQUIRED_ENV_EXAMPLE_KEYS = (
     "VIDEO_FPS",
     "VIDEO_DURATION",
     "VIDEO_NUM_CLIPS",
+    "VIDEO_MIN_DURATION",
+    "VIDEO_MAX_DURATION",
+    "VIDEO_MAX_CLIPS",
     "AUDIO_SAMPLE_RATE",
     "AUDIO_CHANNELS",
     "AUDIO_VOICE_VOLUME",
@@ -54,6 +60,9 @@ REQUIRED_ENV_EXAMPLE_KEYS = (
     "ENABLE_AUTO_PUBLISH",
     "LOG_LEVEL",
     "LOG_FILE",
+    "MAX_UPLOAD_RETRIES",
+    "UPLOAD_RETRY_MAX_SLEEP_SECONDS",
+    "HTTP_USER_AGENT",
 )
 
 REQUIRED_GITIGNORE_ENTRIES = (

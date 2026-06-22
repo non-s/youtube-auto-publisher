@@ -13,6 +13,8 @@ BASE_DIR = Path(__file__).parent
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY", "")
 PEXELS_BASE_URL = "https://api.pexels.com/v1"
 PEXELS_VIDEO_URL = "https://api.pexels.com/videos"
+PEXELS_TIMEOUT_SECONDS = int(os.getenv("PEXELS_TIMEOUT_SECONDS", "30"))
+PEXELS_MAX_DOWNLOAD_MB = int(os.getenv("PEXELS_MAX_DOWNLOAD_MB", "200"))
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
@@ -37,6 +39,9 @@ VIDEO_HEIGHT = int(os.getenv("VIDEO_HEIGHT", "1080"))
 VIDEO_FPS = int(os.getenv("VIDEO_FPS", "30"))
 VIDEO_DURATION = int(os.getenv("VIDEO_DURATION", "60"))
 VIDEO_NUM_CLIPS = int(os.getenv("VIDEO_NUM_CLIPS", "5"))
+VIDEO_MIN_DURATION = int(os.getenv("VIDEO_MIN_DURATION", "30"))
+VIDEO_MAX_DURATION = int(os.getenv("VIDEO_MAX_DURATION", "180"))
+VIDEO_MAX_CLIPS = int(os.getenv("VIDEO_MAX_CLIPS", "8"))
 
 AUDIO_SAMPLE_RATE = int(os.getenv("AUDIO_SAMPLE_RATE", "44100"))
 AUDIO_CHANNELS = int(os.getenv("AUDIO_CHANNELS", "2"))
@@ -69,6 +74,10 @@ ENABLE_AUTO_PUBLISH = os.getenv("ENABLE_AUTO_PUBLISH", "true").lower() == "true"
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_FILE = Path(os.getenv("LOG_FILE", str(LOGS_DIR / "app.log")))
+
+MAX_UPLOAD_RETRIES = int(os.getenv("MAX_UPLOAD_RETRIES", "6"))
+UPLOAD_RETRY_MAX_SLEEP_SECONDS = int(os.getenv("UPLOAD_RETRY_MAX_SLEEP_SECONDS", "64"))
+HTTP_USER_AGENT = os.getenv("HTTP_USER_AGENT", "youtube-auto-publisher/1.0")
 
 CURIOSITY_TOPICS = [
     "fatos incriveis sobre o universo",
@@ -123,14 +132,23 @@ def get_unused_topic(used_topics: list) -> str:
         available = CURIOSITY_TOPICS
     return random.choice(available)
 
-def validate_config():
+def validate_config(require_youtube: bool = True, require_youtube_token: bool = False):
     required = {
         "GROQ_API_KEY": GROQ_API_KEY,
         "PEXELS_API_KEY": PEXELS_API_KEY,
-        "YOUTUBE_CLIENT_ID": YOUTUBE_CLIENT_ID,
-        "YOUTUBE_CLIENT_SECRET": YOUTUBE_CLIENT_SECRET,
     }
+    if require_youtube:
+        required["YOUTUBE_CLIENT_ID"] = YOUTUBE_CLIENT_ID
+        required["YOUTUBE_CLIENT_SECRET"] = YOUTUBE_CLIENT_SECRET
+    if require_youtube_token:
+        required["YOUTUBE_TOKEN_JSON"] = YOUTUBE_TOKEN_JSON
     missing = [k for k, v in required.items() if not v]
     if missing:
         raise ValueError(f"Variaveis obrigatorias nao configuradas: {', '.join(missing)}")
+    if VIDEO_PRIVACY_STATUS not in {"public", "private", "unlisted"}:
+        raise ValueError("VIDEO_PRIVACY_STATUS deve ser public, private ou unlisted")
+    if VIDEO_MIN_DURATION < 1 or VIDEO_MAX_DURATION < VIDEO_MIN_DURATION:
+        raise ValueError("VIDEO_MIN_DURATION/VIDEO_MAX_DURATION invalidos")
+    if VIDEO_MAX_CLIPS < 1:
+        raise ValueError("VIDEO_MAX_CLIPS deve ser maior que zero")
     return True

@@ -17,6 +17,14 @@ on:
         description: "Topico especifico (deixe vazio para automatico)"
         required: false
         default: ""
+      dry_run:
+        description: "Gerar video sem publicar no YouTube"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 permissions:
   contents: write
@@ -43,6 +51,42 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
+      - name: Validar secrets de producao
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
+        run: |
+          python <<'PY'
+          import json
+          import os
+          import sys
+
+          required = {
+              "GROQ_API_KEY": os.environ.get("GROQ_API_KEY", "").strip(),
+              "PEXELS_API_KEY": os.environ.get("PEXELS_API_KEY", "").strip(),
+              "YOUTUBE_CLIENT_ID": os.environ.get("YOUTUBE_CLIENT_ID", "").strip(),
+              "YOUTUBE_CLIENT_SECRET": os.environ.get("YOUTUBE_CLIENT_SECRET", "").strip(),
+              "YOUTUBE_TOKEN_JSON": os.environ.get("YOUTUBE_TOKEN_JSON", "").strip(),
+          }
+          missing = [name for name, value in required.items() if not value]
+          if missing:
+              print(f"Missing required GitHub Actions secrets: {', '.join(missing)}", file=sys.stderr)
+              raise SystemExit(1)
+
+          try:
+              token = json.loads(required["YOUTUBE_TOKEN_JSON"])
+          except json.JSONDecodeError as exc:
+              print(f"YOUTUBE_TOKEN_JSON is not valid JSON: {exc}", file=sys.stderr)
+              raise SystemExit(1)
+
+          if not token.get("refresh_token"):
+              print("YOUTUBE_TOKEN_JSON must include a refresh_token for unattended publishing.", file=sys.stderr)
+              raise SystemExit(1)
+          PY
+
       - name: Instalar FFmpeg
         run: |
           sudo apt-get update -y
@@ -58,8 +102,17 @@ jobs:
         env:
           YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
         run: |
-          echo "$YOUTUBE_TOKEN_JSON" > token.json
-          echo "Credenciais configuradas"
+          python <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          token = json.loads(os.environ["YOUTUBE_TOKEN_JSON"])
+          token_path = Path("token.json")
+          token_path.write_text(json.dumps(token), encoding="utf-8")
+          token_path.chmod(0o600)
+          print("Credenciais YouTube configuradas em token.json")
+          PY
 
       - name: Criar video de curiosidades
         env:
@@ -70,12 +123,17 @@ jobs:
           YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
           VIDEO_PRIVACY_STATUS: "public"
           ENABLE_AUTO_PUBLISH: "true"
+          TOPIC_INPUT: ${{ github.event.inputs.topic || '' }}
+          DRY_RUN_INPUT: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
-          if [ -n "${{ github.event.inputs.topic }}" ]; then
-            python main.py --topic "${{ github.event.inputs.topic }}"
-          else
-            python main.py
+          args=()
+          if [ -n "$TOPIC_INPUT" ]; then
+            args+=(--topic "$TOPIC_INPUT")
           fi
+          if [ "$DRY_RUN_INPUT" = "true" ]; then
+            args+=(--dry-run)
+          fi
+          python main.py "${args[@]}"
 
       - name: Persistir estado operacional no GitHub
         if: success()
