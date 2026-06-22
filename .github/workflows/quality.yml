@@ -32,3 +32,6 @@ jobs:
 
       - name: Validate workflow contracts
         run: python scripts/check_workflows.py
+
+      - name: Validate repository contracts
+        run: python scripts/check_repo_contracts.py

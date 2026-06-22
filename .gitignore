@@ -157,6 +157,18 @@ ENV/
 env.bak/
 venv.bak/
 
+# Local credentials and generated runtime state
+token.json
+client_secrets.json
+credentials.json
+*.sqlite
+*.sqlite3
+data/*.db
+data/*.db-journal
+output/
+temp/
+logs/
+
 # Spyder project settings
 .spyderproject
 .spyproject
