@@ -35,3 +35,6 @@ jobs:
 
       - name: Validate repository contracts
         run: python scripts/check_repo_contracts.py
+
+      - name: Validate production contracts
+        run: python scripts/check_production_contracts.py

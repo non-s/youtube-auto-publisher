@@ -4,7 +4,6 @@ Orquestra todo o pipeline de criacao e publicacao de videos
 Suporte a 4 videos/dia nos melhores horarios do YouTube
 """
 import sys
-import random
 import shutil
 import argparse
 import json
@@ -35,6 +34,30 @@ console = Console()
 USED_TOPICS_FILE = config.DATA_DIR / "used_topics.json"
 
 
+def read_json_file(path: Path, default: dict) -> dict:
+    if not path.exists():
+        return default
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        logger.warning(f"Arquivo JSON corrompido ou incompleto: {path}")
+        return default
+
+
+def write_json_atomic(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_suffix(f"{path.suffix}.tmp")
+    temp_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    temp_path.replace(path)
+
+
+def clamp_int(value: int, minimum: int, maximum: int) -> int:
+    return max(minimum, min(int(value), maximum))
+
+
 def setup_logging():
     logger.remove()
     logger.add(
@@ -53,11 +76,10 @@ def setup_logging():
 
 def load_used_topics() -> list:
     """Carrega lista de topicos usados recentemente"""
-    if USED_TOPICS_FILE.exists():
-        data = json.loads(USED_TOPICS_FILE.read_text(encoding="utf-8"))
-        # Mantem apenas os ultimos 30 dias de topicos
-        return data.get("topics", [])[-40:]
-    return []
+    data = read_json_file(USED_TOPICS_FILE, {"topics": []})
+    topics = [str(topic) for topic in data.get("topics", []) if str(topic).strip()]
+    # Mantem apenas os ultimos 40 topicos para evitar repeticao recente.
+    return topics[-40:]
 
 
 def save_used_topic(topic: str):
@@ -65,11 +87,7 @@ def save_used_topic(topic: str):
     topics = load_used_topics()
     if topic not in topics:
         topics.append(topic)
-    USED_TOPICS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    USED_TOPICS_FILE.write_text(
-        json.dumps({"topics": topics}, ensure_ascii=False, indent=2),
-        encoding="utf-8"
-    )
+    write_json_atomic(USED_TOPICS_FILE, {"topics": topics[-40:]})
 
 
 def get_next_topic() -> str:
@@ -84,28 +102,21 @@ def get_videos_published_today() -> int:
     """Retorna quantos videos foram publicados hoje"""
     today = date.today().isoformat()
     today_file = config.DATA_DIR / f"published_{today}.json"
-    if today_file.exists():
-        data = json.loads(today_file.read_text(encoding="utf-8"))
-        return len(data.get("videos", []))
-    return 0
+    data = read_json_file(today_file, {"videos": []})
+    return len(data.get("videos", []))
 
 
 def register_video_published_today(session_id: str, topic: str):
     """Registra um video publicado hoje"""
     today = date.today().isoformat()
     today_file = config.DATA_DIR / f"published_{today}.json"
-    data = {"videos": []}
-    if today_file.exists():
-        data = json.loads(today_file.read_text(encoding="utf-8"))
+    data = read_json_file(today_file, {"videos": []})
     data["videos"].append({
         "session_id": session_id,
         "topic": topic,
         "time": datetime.now().isoformat()
     })
-    today_file.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2),
-        encoding="utf-8"
-    )
+    write_json_atomic(today_file, data)
 
 
 def create_video(
@@ -119,7 +130,18 @@ def create_video(
     """
     Pipeline completo de criacao e publicacao de video de curiosidades.
     """
-    if upload and not dry_run:
+    duration = clamp_int(duration, config.VIDEO_MIN_DURATION, config.VIDEO_MAX_DURATION)
+    num_clips = clamp_int(num_clips, 1, config.VIDEO_MAX_CLIPS)
+    if topic:
+        topic = topic.strip()[:120]
+
+    should_upload = upload and not dry_run
+    config.validate_config(
+        require_youtube=should_upload,
+        require_youtube_token=should_upload,
+    )
+
+    if should_upload:
         today_count = get_videos_published_today()
         if today_count >= config.MAX_VIDEOS_PER_DAY:
             message = (
@@ -247,7 +269,7 @@ def create_video(
         console.print(f"[bold]Titulo:[/bold] {meta.get('title', '')}")
 
         # ETAPA 8: Publicar no YouTube
-        if upload and not dry_run:
+        if should_upload:
             with Progress(SpinnerColumn(), TextColumn("{task.description}")) as p:
                 t = p.add_task("Publicando no YouTube...", total=None)
                 uploader = YouTubeUploader()
@@ -274,7 +296,7 @@ def create_video(
 
         # Registra topico como usado para evitar duplicatas
         save_used_topic(topic)
-        if upload and not dry_run and result.get("youtube_id"):
+        if should_upload and result.get("youtube_id"):
             register_video_published_today(session_id, topic)
 
         # Salva no banco de dados

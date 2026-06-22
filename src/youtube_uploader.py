@@ -4,12 +4,15 @@ Gerencia autenticacao OAuth e upload via YouTube Data API v3
 """
 import json
 import os
+import random
+import time
 from pathlib import Path
 from loguru import logger
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 import config
 
@@ -17,6 +20,7 @@ import config
 SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
 TOKEN_FILE = Path("token.json")
 CLIENT_SECRETS_FILE = Path("client_secrets.json")
+RETRIABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 
 class YouTubeUploader:
@@ -29,6 +33,7 @@ class YouTubeUploader:
     def _authenticate(self):
         """Autentica com a API do YouTube"""
         creds = None
+        creds_source = None
 
         # 1. Tenta usar token do GitHub Secret (CI/CD)
         token_json_str = config.YOUTUBE_TOKEN_JSON
@@ -36,41 +41,52 @@ class YouTubeUploader:
             try:
                 token_data = json.loads(token_json_str)
                 creds = Credentials.from_authorized_user_info(token_data, SCOPES)
+                creds_source = "env"
                 logger.info("Usando token do ambiente (GitHub Secret)")
             except Exception as e:
-                logger.warning(f"Erro ao carregar token do ambiente: {e}")
+                logger.warning(f"Erro ao carregar token do ambiente: {type(e).__name__}")
 
         # 2. Tenta usar token.json local
         if not creds and TOKEN_FILE.exists():
             try:
                 creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
+                creds_source = "file"
                 logger.info("Usando token local (token.json)")
             except Exception as e:
-                logger.warning(f"Erro ao carregar token local: {e}")
+                logger.warning(f"Erro ao carregar token local: {type(e).__name__}")
 
         # 3. Renova token expirado
         if creds and creds.expired and creds.refresh_token:
             try:
                 creds.refresh(Request())
                 logger.info("Token renovado com sucesso")
-                # Salva token renovado
-                TOKEN_FILE.write_text(creds.to_json())
+                if creds_source == "file":
+                    TOKEN_FILE.write_text(creds.to_json(), encoding="utf-8")
             except Exception as e:
-                logger.error(f"Erro ao renovar token: {e}")
+                logger.error(f"Erro ao renovar token: {type(e).__name__}")
                 creds = None
 
         # 4. Fluxo OAuth interativo (apenas local)
         if not creds or not creds.valid:
+            if os.getenv("CI"):
+                raise RuntimeError(
+                    "Credenciais YouTube invalidas no CI. Configure YOUTUBE_TOKEN_JSON "
+                    "com refresh_token valido nos GitHub Actions secrets."
+                )
             if CLIENT_SECRETS_FILE.exists():
                 logger.info("Iniciando fluxo OAuth interativo...")
                 flow = InstalledAppFlow.from_client_secrets_file(
                     str(CLIENT_SECRETS_FILE), SCOPES
                 )
                 creds = flow.run_local_server(port=0)
-                TOKEN_FILE.write_text(creds.to_json())
+                TOKEN_FILE.write_text(creds.to_json(), encoding="utf-8")
                 logger.success(f"Token salvo em {TOKEN_FILE}")
             else:
                 # Tenta usar client_id/secret do ambiente
+                if not config.YOUTUBE_CLIENT_ID or not config.YOUTUBE_CLIENT_SECRET:
+                    raise RuntimeError(
+                        "YOUTUBE_CLIENT_ID e YOUTUBE_CLIENT_SECRET sao obrigatorios para OAuth local"
+                    )
                 client_config = {
                     "installed": {
                         "client_id": config.YOUTUBE_CLIENT_ID,
@@ -82,7 +98,7 @@ class YouTubeUploader:
                 }
                 flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
                 creds = flow.run_local_server(port=0)
-                TOKEN_FILE.write_text(creds.to_json())
+                TOKEN_FILE.write_text(creds.to_json(), encoding="utf-8")
                 logger.success(f"Token salvo em {TOKEN_FILE}")
 
         self.service = build("youtube", "v3", credentials=creds)
@@ -132,16 +148,41 @@ class YouTubeUploader:
         )
 
         response = None
+        retry_count = 0
         while response is None:
-            status, response = request.next_chunk()
-            if status:
-                progress = int(status.progress() * 100)
-                logger.info(f"Upload: {progress}%")
+            try:
+                status, response = request.next_chunk()
+                if status:
+                    progress = int(status.progress() * 100)
+                    logger.info(f"Upload: {progress}%")
+                retry_count = 0
+            except HttpError as exc:
+                status_code = getattr(exc.resp, "status", None)
+                if status_code not in RETRIABLE_STATUS_CODES:
+                    raise
+                retry_count = self._sleep_before_retry(retry_count, f"HTTP {status_code}")
+            except (OSError, TimeoutError, ConnectionError) as exc:
+                retry_count = self._sleep_before_retry(retry_count, type(exc).__name__)
 
         video_id = response.get("id")
         logger.success(f"Video publicado! ID: {video_id}")
         logger.success(f"URL: https://youtu.be/{video_id}")
         return response
+
+    def _sleep_before_retry(self, retry_count: int, reason: str) -> int:
+        if retry_count >= config.MAX_UPLOAD_RETRIES:
+            raise RuntimeError(f"Upload falhou apos {config.MAX_UPLOAD_RETRIES} retries: {reason}")
+        next_retry = retry_count + 1
+        sleep_seconds = min(
+            (2 ** retry_count) + random.random(),
+            config.UPLOAD_RETRY_MAX_SLEEP_SECONDS,
+        )
+        logger.warning(
+            f"Upload temporariamente indisponivel ({reason}); retry "
+            f"{next_retry}/{config.MAX_UPLOAD_RETRIES} em {sleep_seconds:.1f}s"
+        )
+        time.sleep(sleep_seconds)
+        return next_retry
 
     def get_channel_info(self) -> dict:
         """Retorna informacoes do canal autenticado"""
