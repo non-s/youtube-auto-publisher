@@ -33,6 +33,21 @@ must_contain(
 )
 must_contain(
     ".github/workflows/auto-publish.yml",
+    "id: production_preflight",
+    "auto-publish workflow must expose a production preflight output",
+)
+must_contain(
+    ".github/workflows/auto-publish.yml",
+    "can_publish=false",
+    "auto-publish workflow must skip cleanly when required secrets are missing",
+)
+must_contain(
+    ".github/workflows/auto-publish.yml",
+    "steps.production_preflight.outputs.can_publish == 'true'",
+    "expensive publishing steps must only run after a successful preflight",
+)
+must_contain(
+    ".github/workflows/auto-publish.yml",
     "refresh_token",
     "auto-publish workflow must require unattended YouTube refresh tokens",
 )
