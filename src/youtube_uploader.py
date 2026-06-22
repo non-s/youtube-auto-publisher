@@ -96,8 +96,8 @@ class YouTubeUploader:
         tags: list = None,
         privacy_status: str = "private",
         category_id: str = None,
-    ) -> str:
-        """Faz upload de video para o YouTube e retorna o ID do video"""
+    ) -> dict:
+        """Faz upload de video para o YouTube e retorna a resposta da API."""
         if not self.service:
             raise RuntimeError("Servico YouTube nao autenticado")
 
@@ -141,7 +141,7 @@ class YouTubeUploader:
         video_id = response.get("id")
         logger.success(f"Video publicado! ID: {video_id}")
         logger.success(f"URL: https://youtu.be/{video_id}")
-        return video_id
+        return response
 
     def get_channel_info(self) -> dict:
         """Retorna informacoes do canal autenticado"""
