@@ -18,6 +18,16 @@ on:
         required: false
         default: ""
 
+permissions:
+  contents: write
+
+concurrency:
+  group: youtube-auto-publisher-production
+  cancel-in-progress: false
+
+env:
+  TZ: America/Sao_Paulo
+
 jobs:
   publish-video:
     runs-on: ubuntu-latest
@@ -66,6 +76,26 @@ jobs:
           else
             python main.py
           fi
+
+      - name: Persistir estado operacional no GitHub
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull --rebase --autostash origin "$GITHUB_REF_NAME"
+          shopt -s nullglob
+          state_files=(data/used_topics.json data/published_*.json)
+          if [ "${#state_files[@]}" -eq 0 ]; then
+            echo "Nenhum estado operacional novo para persistir."
+            exit 0
+          fi
+          git add "${state_files[@]}"
+          if git diff --cached --quiet; then
+            echo "Estado operacional sem mudancas."
+            exit 0
+          fi
+          git commit -m "chore: update publisher state [skip ci]"
+          git push
 
       - name: Upload video como artifact (backup)
         if: always()

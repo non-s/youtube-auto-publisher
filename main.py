@@ -82,7 +82,6 @@ def get_next_topic() -> str:
 
 def get_videos_published_today() -> int:
     """Retorna quantos videos foram publicados hoje"""
-    db = DatabaseManager()
     today = date.today().isoformat()
     today_file = config.DATA_DIR / f"published_{today}.json"
     if today_file.exists():
@@ -120,6 +119,26 @@ def create_video(
     """
     Pipeline completo de criacao e publicacao de video de curiosidades.
     """
+    if upload and not dry_run:
+        today_count = get_videos_published_today()
+        if today_count >= config.MAX_VIDEOS_PER_DAY:
+            message = (
+                f"Limite diario atingido "
+                f"({today_count}/{config.MAX_VIDEOS_PER_DAY}). Pulando publicacao."
+            )
+            logger.info(message)
+            console.print(f"[yellow]{message}[/yellow]")
+            return {
+                "topic": topic,
+                "session_id": None,
+                "success": False,
+                "skipped": True,
+                "skip_reason": "daily_limit",
+                "video_path": None,
+                "youtube_id": None,
+                "youtube_url": None,
+            }
+
     # Seleciona topico automaticamente se nao fornecido
     if not topic:
         topic = get_next_topic()
@@ -136,6 +155,8 @@ def create_video(
         "video_path": None,
         "youtube_id": None,
         "youtube_url": None,
+        "skipped": False,
+        "skip_reason": None,
     }
 
     db = DatabaseManager()
@@ -240,8 +261,11 @@ def create_video(
                 )
                 p.update(t, description="Video publicado!")
 
-            result["youtube_id"] = yt_result.get("id")
-            result["youtube_url"] = f"https://youtu.be/{yt_result.get('id')}"
+            video_id = yt_result.get("id") if isinstance(yt_result, dict) else str(yt_result)
+            if not video_id:
+                raise RuntimeError("Resposta da API do YouTube sem id do video")
+            result["youtube_id"] = video_id
+            result["youtube_url"] = f"https://youtu.be/{video_id}"
             console.print(f"[bold green]Publicado:[/bold green] {result['youtube_url']}")
         elif dry_run:
             console.print("[yellow]Modo dry-run: video nao publicado[/yellow]")
@@ -250,7 +274,8 @@ def create_video(
 
         # Registra topico como usado para evitar duplicatas
         save_used_topic(topic)
-        register_video_published_today(session_id, topic)
+        if upload and not dry_run and result.get("youtube_id"):
+            register_video_published_today(session_id, topic)
 
         # Salva no banco de dados
         db.save_video(
@@ -419,7 +444,7 @@ def main():
         return
 
     # Criacao de video unico
-    create_video(
+    result = create_video(
         topic=args.topic,
         duration=args.duration,
         num_clips=args.clips,
@@ -427,6 +452,8 @@ def main():
         upload=not args.no_upload,
         dry_run=args.dry_run,
     )
+    if not result.get("success") and not result.get("skipped"):
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
